@@ -8,6 +8,7 @@
 #include <iostream>
 #include <vector>
 #include <thread>
+#include <cmath>
 extern "C" {
 	#include <jack/jack.h>
 }
@@ -160,7 +161,7 @@ public:
 		if (index < 0) {
 			return;
 		}
-		JV_ASSERT(!isnan(new_gain_lin), "new_gain_lin is not a number");
+		JV_ASSERT(!std::isnan(new_gain_lin), "new_gain_lin is not a number");
 		JV_ASSERT(index < (int32_t)channels_gain.size(), "channels_gain: index out of bounds: size=" + std::to_string(channels_gain.size()) + " index=" + std::to_string(index));
 		new_gain_lin = MIN(new_gain_lin, 10.0);
 		new_gain_lin = MAX(new_gain_lin, 0.0);
