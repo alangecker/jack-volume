@@ -109,12 +109,14 @@ public:
 	  m_master_gain(1.0),
 	  m_master_mute(false),
 	  channels_gain(),
+	  channels_peak(),
 	  channels_mute() {
 
 		ports_out.resize(this->num_channels);
 		ports_in.resize(this->num_channels);
 		channels_gain.resize(this->num_channels);
 		channels_mute.resize(this->num_channels);
+		channels_peak.resize(this->num_channels);
 
 		set_process_callback(jack_volume::process, this);
 		on_shutdown(jack_volume::shutdown, this);
@@ -200,6 +202,12 @@ public:
 		return ret;
 	}
 
+	float read_peak(int32_t index) {
+		float tmp = channels_peak[index];
+		channels_peak[index] = 0.0f;
+		return tmp;
+	}
+
 	static void shutdown(void* arg) {
 		exit(EXIT_FAILURE);
 	}
@@ -234,12 +242,17 @@ public:
 					outs[i][frame] = 0.0;
 				} else {
 					outs[i][frame] = ins[i][frame] * volume->master_lin() * volume->channel_lin(i);
+					const float s = fabs(outs[i][frame]);
+					if (s > volume->channels_peak[i]) {
+						volume->channels_peak[i] = s;
+					}
 				}
 			}
 		}
 		return 0;
 	}
 
+	std::vector<float> channels_peak;
 private:
 	int num_channels;
 	std::vector<jack_port_t*> ports_out;
@@ -352,7 +365,7 @@ static void start_udp_thread(InetUDPMaster* master_udp, InetTransportManager* tr
 		JV_ASSERT(master_udp->startlisten(port), "failed to listen on udp port " + std::to_string(port) + "\nmaybe port is already in use?");
 		std::cout << "start listening on udp port " << port << std::endl;
 		while (running) {
-			transport_udp->runCycle(1000);
+			transport_udp->runCycle(100);
 		}
 	} catch(std::exception& e) {
 		std::cerr << e.what() << std::endl;
@@ -468,12 +481,19 @@ int main(int argc, char** argv) {
 	}
 
 	std::thread udp(start_udp_thread, &udpMaster, &transport_udp, port);
-
+	// printLater.join();
 	try {
 		JV_ASSERT(tcpMaster.startlisten(port), "failed to listen on tcp port " + std::to_string(port) + "\nmaybe port is already in use?");
 		std::cout << "start listening on tcp port " << port << std::endl;
 		while (running) {
-			transMan.runCycle(1000);
+			std::cout << "meter";
+			for (int i=0; i < jack_volume.channels(); i++) {
+				printf("\t%.4f", jack_volume.read_peak(i) );
+				// std::cout << ":" << jack_volume.read_peak(i);
+			}
+			std::cout << "\n";
+			fflush(stdout);
+			transMan.runCycle(50);
 		}
 	} catch (std::exception& e) {
 		std::cerr << e.what() << std::endl;
